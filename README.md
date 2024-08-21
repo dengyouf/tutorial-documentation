@@ -75,6 +75,4 @@ git push
 
 
 
-=======
-Documentation for DevOps Tutorials 
->>>>>>> a464f9560575b20506333d47f81c794bc73d03a2
+
