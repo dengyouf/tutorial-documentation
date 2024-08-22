@@ -12,9 +12,10 @@
 ==================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: DEVOPS
 
    devops/install-jenkins.md
    devops/install-gitlab.md
+   devops/install-sonarqube .md
    devops/install-kubernetes.md

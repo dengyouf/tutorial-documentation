@@ -1,6 +1,6 @@
 # GitLab
 
-## Install GitLab On Ubuntu
+## Install GitLab On Ubuntu20.04
 
 1. 信任 GitLab 的 GPG 公钥
 ```shell
