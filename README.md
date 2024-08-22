@@ -72,7 +72,3 @@ git push
     - 导入项目
     - 点击构建
     - 访问：`https://DOCNAME.readthedocs.io/`
-
-
-
-

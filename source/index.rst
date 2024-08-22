@@ -13,8 +13,8 @@
 
 .. toctree::
    :maxdepth: 2
-   :caption: DevOps
+   :caption: DEVOPS
 
-   devops/install-jenkins-by-docker.md
-   devops/install-gitlab-by-docker.md
-   devops/install-kubernetes-by-kubeadm.md
+   devops/install-jenkins.md
+   devops/install-gitlab.md
+   devops/install-kubernetes.md
