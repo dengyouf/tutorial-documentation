@@ -163,7 +163,7 @@ pipeline {
 
 > 所有构建任务都放在 Agent ，so 需要在Agent机器上准备构建工具
 
-- 项目地址：https://github.com/dengyouf/springboot-app.git
+- 项目地址：https://gitee.com/dengyouf/springboot-app.git
 - JDK：java17
 - Maven： 3.6+
 
@@ -230,8 +230,8 @@ pipeline {
         stage("Checkout form SCM") {
             steps {
                 git branch: 'main', 
-                // credentialsId: 'github', 
-                url: 'https://github.com/dengyouf/springboot-app.git'
+                credentialsId: 'gitee', 
+                url: 'https://gitee.com/dengyouf/springboot-app.git'
             }
         }
     }
@@ -240,7 +240,393 @@ pipeline {
 
 4. 创建 Job-springboot-app
 
-![img_4.png](imgs/job-app.png)
+![img_5.png](imgs/job-app.png)
+
+
+## Jenkins integrates SonarQube
+
+1. 在Sonarqube上生成Tokens用于提供给Jenkins使用
+- token: `sqa_de2ce5415451eeb64d4c2bbf9cf31e13b753a8b2`
+![img.png](img.png)
+
+2. Jenkins 添加 sonarqube凭据
+- Secret: `sqa_de2ce5415451eeb64d4c2bbf9cf31e13b753a8b2`
+- id: `sonar-jenkins-ci-token`
+![img_1.png](img_1.png)
+
+3. 安装sonarqube相关插件
+- SonarQube Scanner
+- Sonar Quality Gates
+- Quality Gates
+![img_2.png](img_2.png)
+
+4. 集成 SonarQube Server
+- 系统设置，添加Sonarqube服务(sonarqube-server)
+![img_3.png](img_3.png)
+- 配置全局工具(sonarqube-scanner)
+![img_4.png](img_4.png)
+
+```shell
+pipeline {
+    agent {
+        label "jenkins-agent"
+    }
+
+    tools {
+        jdk 'JDK17'
+        maven 'MAVEN3'
+    }
+
+    stages {
+        stage("Cleanup Workspace") {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage("Checkout form SCM") {
+            steps {
+                git branch: 'main',
+                credentialsId: 'gitee-dengyouf',
+                url: 'https://gitee.com/dengyouf/springboot-app.git'
+            }
+        }
+
+        stage("Build Application") {
+            steps {
+                sh'mvn clean package'
+            }
+        }
+
+        stage("Test Application") {
+            steps {
+                sh'mvn test'
+            }
+        }
+
+        stage("Sonarqube Analysis") {
+            steps {
+                script {
+                    withSonarQubeEnv(credentialsId: 'sonar-jenkins-ci-token') {
+                        sh'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                script {
+                    waitForQualityGare abordPipeline: false, creadentialsId: 'sonar-jenkins-ci-token'
+                }
+            }
+        }
+    }
+}
+```
+
+## Jenkins integrates Docker
+
+1. Agent 主机需正常登陆Harbor
+
+```shell
+usermod -aG docker jenkins
+su - jenkins
+docker login reg.linux.io -u admin -p Harbor12345
+
+chmod o+r  /etc/docker/certs.d/reg.linux.io/reg.linux.io.key
+chmod o+wr /var/run/docker.sock
+```
+
+2. 安装Docker插件
+- Docker
+- Docker Commons
+- Docker API
+- docker-build-step
+- CloudBees Docker Build and Publish
+![img_5.png](img_5.png)
+
+3. 添加Harbor凭据
+- name: `harbor-admin`
+![img_6.png](img_6.png)
+
+4. 源码仓库添加Dockerfile
+
+```shell
+FROM maven:3-openjdk-17 as build
+WORKDIR /app
+COPY . .
+RUN mvn clean install
+
+FROM maven:3-openjdk-17
+WORDIR /app
+COPY --from=build /app/target/helloword-0.0.1-SNAPSHOT.jar /apps/
+EXPOSE 8080
+CMD ["java", "-jar", "helloword-0.0.1-SNAPSHOT.jar"]
+```
+
+5. 推送镜像到远程Harbor
+
+```shell
+pipeline {
+    agent {
+        label "jenkins-agent"
+    }
+
+    tools {
+        jdk 'JDK17'
+        maven 'MAVEN3'
+    }
+
+        environment {
+                HARBOR_URL = "https://reg.linux.io"
+                HARBOR_ENDPOINT = "reg.linux.io"
+                PROJECT_NAME = "testproject"
+                APP_NAME = "springboo-app"
+                RELEASE = "v1.0.0"
+                IMAGE_NAME = "${HARBOR_ENDPOINT}" + "/" + "${PROJECT_NAME}" + "/" + "${APP_NAME}"
+                IMAGE_TAG = "${RELEASE}" + "-" + "${BUILD_NUMBER}"
+        }
+
+    stages {
+        stage("Cleanup Workspace") {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage("Checkout form SCM") {
+            steps {
+                git branch: 'main',
+                credentialsId: 'gitee-dengyouf',
+                url: 'https://gitee.com/dengyouf/springboot-app.git'
+            }
+        }
+
+        stage("Build Application") {
+            steps {
+                sh'mvn clean package'
+            }
+        }
+
+        stage("Test Application") {
+            steps {
+                sh'mvn test'
+            }
+        }
+
+        stage("Sonarqube Analysis") {
+            steps {
+                script {
+                    withSonarQubeEnv(credentialsId: 'sonar-jenkins-ci-token') {
+                        sh'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                script {
+                    waitForQualityGate abordPipeline: false, creadentialsId: 'sonar-jenkins-ci-token'
+                }
+            }
+        }
+
+        stage("Build & Push Harbor") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'harbor-admin', url: "${HARBOR_URL}") {
+                        docker_image = docker.build "${IMAGE_NAME}"
+                        docker_image.push("${IMAGE_TAG}")
+                        docker_image.push("latest")
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+## Deploy Application to Kubernetes
+
+1. 创建Secret
+```shell
+kubectl create secret docker-registry test-harbor-secret \
+  --docker-server="reg.linux.io" \
+  --docker-username="admin" \
+  --docker-password="Harbor12345" \
+  --docker-email="dengyouf@gmail.com" -n dev
+```
+
+2. 添加一个新的仓库用于放资源清单deployment.yaml
+- https://gitee.com/dengyouf/gitops-springboot-app.git
+
+```shell
+vim deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboo-app-deploy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: springboot-app-app
+  template:
+    metadata:
+      labels:
+        app: springboot-app-app
+    spec:
+      imagePullSecrets:
+        - name: test-harbor-secret
+      containers:
+      - name: springboot-app
+        image: IMAGE
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        port:
+         - containerPort: 8080
+```
+
+3. 在部署机器上提供部署文件跟kubectl命令
+```shell
+scp root@192.168.122.11:/usr/bin/kubectl //usr/bin/kubectl
+scp -r  root@192.168.122.11:/root/.kube /home/jenkins
+chown jenkins.jenkins /home/jenkins/.kube -R
+su - jenkins
+kubectl  get nodes
+```
+
+4. 编写pipeline实现部署
+
+```shell
+pipeline {
+    agent {
+        label "jenkins-agent"
+    }
+
+    tools {
+        jdk 'JDK17'
+        maven 'MAVEN3'
+    }
+
+        environment {
+                        HARBOR_URL = "https://reg.linux.io"
+                        HARBOR_ENDPOINT = "reg.linux.io"
+                        PROJECT_NAME = "testproject"
+                        APP_NAME = "springboo-app"
+                        RELEASE = "v1.0.0"
+                        IMAGE_NAME = "${HARBOR_ENDPOINT}" + "/" + "${PROJECT_NAME}" + "/" + "${APP_NAME}"
+                        IMAGE_TAG = "${RELEASE}" + "-" + "${BUILD_NUMBER}"
+        }
+
+        parameters {
+                    //string(name: "Env", defaultValue: 'default', description: '')
+                        choice(name: 'EnvTag', choices: ['dev', 'test', 'stag'], description: '部署环境')
+            booleanParam(name: "Deploy", defaultValue: true, description: '部署到K8s环境')
+   }
+
+    stages {
+        stage("Cleanup Workspace") {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage("Checkout form SCM") {
+            steps {
+                git branch: 'main',
+                credentialsId: 'gitee-dengyouf',
+                url: 'https://gitee.com/dengyouf/springboot-app.git'
+            }
+        }
+
+        stage("Build Application") {
+            steps {
+                sh'mvn clean package'
+            }
+        }
+
+        stage("Test Application") {
+            steps {
+                sh'mvn test'
+            }
+        }
+
+        stage("Sonarqube Analysis") {
+            steps {
+                script {
+                    withSonarQubeEnv(credentialsId: 'sonar-jenkins-ci-token') {
+                        sh'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                script {
+                    waitForQualityGate abordPipeline: false, creadentialsId: 'sonar-jenkins-ci-token'
+                }
+            }
+        }
+
+        stage("Build & Push Harbor") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'harbor-admin', url: "${HARBOR_URL}") {
+                        docker_image = docker.build "${IMAGE_NAME}"
+                        docker_image.push("${IMAGE_TAG}")
+                        docker_image.push("latest")
+                    }
+                }
+            }
+        }
+
+        stage("Update K8S Manifests") {
+            steps {
+                git branch: 'main',
+                credentialsId: 'gitee-dengyouf',
+                url: 'https://gitee.com/dengyouf/gitops-springboot-app.git'
+                script {
+                    sh"""
+                        echo ">>>>>>>current image<<<<<<<"
+                        grep image deployment.yaml
+                        #sed -i 's@IMAGE@${IMAGE_NAME}:${IMAGE_TAG}@g' deployment.yaml
+                        sed -i 's@image: .*@image: ${IMAGE_NAME}:${IMAGE_TAG}@g' deployment.yaml
+                        echo ">>>>>>>update image<<<<<<<"
+                        grep image deployment.yaml
+                        git config --global user.name "dengyouf"
+                        git config --global user.email "dengyouf@gmail.com"
+                        git add deployment.yaml
+                        git commit -m 'update Deployment Manifest'
+                    """
+                        withCredentials([gitUsernamePassword(credentialsId: 'gitee-dengyouf', gitToolName: 'Default')]){
+                                sh"git push https://gitee.com/dengyouf/gitops-springboot-app.git main "
+                        }
+
+                }
+            }
+        }
+
+        stage("Deploy Application to K8S") {
+            when {
+                 equals expected: "true", actual: "${params.Deploy}"
+            }
+            steps {
+                sh "kubectl apply -f deployment.yaml -n ${params.EnvTag}"
+            }
+        }
+    }
+}
+```
+
+
+
 
 
 
