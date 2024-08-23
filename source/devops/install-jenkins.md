@@ -449,6 +449,7 @@ pipeline {
 ```
 
 ## Deploy Application to Kubernetes
+![img.png](imgs/deploy-k8s.png)
 
 1. 创建Secret
 ```shell
