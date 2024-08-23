@@ -247,24 +247,24 @@ pipeline {
 
 1. 在Sonarqube上生成Tokens用于提供给Jenkins使用
 - token: `sqa_de2ce5415451eeb64d4c2bbf9cf31e13b753a8b2`
-![img.png](img.png)
+![img.png](imgs/sonar001.png)
 
 2. Jenkins 添加 sonarqube凭据
 - Secret: `sqa_de2ce5415451eeb64d4c2bbf9cf31e13b753a8b2`
 - id: `sonar-jenkins-ci-token`
-![img_1.png](img_1.png)
+![img_1.png](imgs/sonar-token.png)
 
 3. 安装sonarqube相关插件
 - SonarQube Scanner
 - Sonar Quality Gates
 - Quality Gates
-![img_2.png](img_2.png)
+![img_2.png](imgs/sonar-plugin.png)
 
 4. 集成 SonarQube Server
 - 系统设置，添加Sonarqube服务(sonarqube-server)
-![img_3.png](img_3.png)
+![img_3.png](imgs/sonar-system.png)
 - 配置全局工具(sonarqube-scanner)
-![img_4.png](img_4.png)
+![img_4.png](imgs/sonar-tools.png)
 
 ```shell
 pipeline {
@@ -344,11 +344,11 @@ chmod o+wr /var/run/docker.sock
 - Docker API
 - docker-build-step
 - CloudBees Docker Build and Publish
-![img_5.png](img_5.png)
+![img_5.png](imgs/docker-plugins.png)
 
 3. 添加Harbor凭据
 - name: `harbor-admin`
-![img_6.png](img_6.png)
+![img_6.png](imgs/harbor-password.png)
 
 4. 源码仓库添加Dockerfile
 
